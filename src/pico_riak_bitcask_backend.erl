@@ -181,7 +181,7 @@ delete(Bucket, Key, _IndexSpecs, #state{ref=Ref}=State) ->
     end.
 
 %% @doc Fold over all the buckets.
--spec fold_buckets(riak_kv_backend:fold_buckets_fun(),
+-spec fold_buckets(pico_riak_backend:fold_buckets_fun(),
                    any(),
                    [],
                    state()) -> {ok, any()} | {async, fun()} | {error, term()}.
@@ -224,7 +224,7 @@ fold_buckets(FoldBucketsFun, Acc, Opts, #state{opts=BitcaskOpts,
     end.
 
 %% @doc Fold over all the keys for one or all buckets.
--spec fold_keys(riak_kv_backend:fold_keys_fun(),
+-spec fold_keys(pico_riak_backend:fold_keys_fun(),
                 any(),
                 [{atom(), term()}],
                 state()) -> {ok, term()} | {async, fun()} | {error, term()}.
@@ -263,7 +263,7 @@ fold_keys(FoldKeysFun, Acc, Opts, #state{opts=BitcaskOpts,
     end.
 
 %% @doc Fold over all the objects for one or all buckets.
--spec fold_objects(riak_kv_backend:fold_objects_fun(),
+-spec fold_objects(pico_riak_backend:fold_objects_fun(),
                    any(),
                    [{atom(), term()}],
                    state()) -> {ok, any()} | {async, fun()} | {error, term()}.
@@ -497,10 +497,10 @@ maybe_schedule_sync(Ref) when is_reference(Ref) ->
     end.
 
 schedule_sync(Ref, SyncIntervalMs) when is_reference(Ref) ->
-    riak_kv_backend:callback_after(SyncIntervalMs, Ref, {sync, SyncIntervalMs}).
+    pico_riak_backend:callback_after(SyncIntervalMs, Ref, {sync, SyncIntervalMs}).
 
 schedule_merge(Ref) when is_reference(Ref) ->
-    riak_kv_backend:callback_after(?MERGE_CHECK_INTERVAL, Ref, merge_check).
+    pico_riak_backend:callback_after(?MERGE_CHECK_INTERVAL, Ref, merge_check).
 
 %% @private
 get_data_dir(DataRoot, Partition) ->
@@ -683,13 +683,13 @@ set_mode(read_write, Config) ->
 simple_test_() ->
     ?assertCmd("rm -rf test/bitcask-backend"),
     application:set_env(bitcask, data_root, ""),
-    riak_kv_backend:standard_test(?MODULE,
+    pico_riak_backend:standard_test(?MODULE,
                                         [{data_root, "test/bitcask-backend"}]).
 
 custom_config_test_() ->
     ?assertCmd("rm -rf test/bitcask-backend"),
     application:set_env(bitcask, data_root, ""),
-    riak_kv_backend:standard_test(?MODULE,
+    pico_riak_backend:standard_test(?MODULE,
                                         [{data_root, "test/bitcask-backend"}]).
 
 startup_data_dir_test() ->

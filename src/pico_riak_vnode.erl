@@ -27,7 +27,7 @@
 -record(state,
         { index           %% Partition index
         , vnode_id        %% VNode identifier
-        , ref
+        , backend         %% Bitcask backend state
         })
 
 %% ===================================================================
@@ -38,17 +38,19 @@ start_vnode(I) ->
     riak_core_vnode_master:get_vnode_pid(I, ?MODULE).
 
 init([Idx]) ->
+
+    {ok, BCConfig} = application:get_env(pico_riak, bitcask_config),
+
     %% Initiate our bitcask backend here
     %%
     %% Default to the current directory and name the top-level "data"
     %% with a sub-directory named bitcask, ensure the directories are
     %% created.
-    {ok, BCConfig} = application:get_env(pico_riak, bitcask_config),
+    Backend = pico_riak_bitcask_backend:start(Partition, BCConfig),
 
-    BCHandle = pico_riak_bitcask_backend:start(Partition, BCConfig),
-
-    State = #state{ index = Idx, ref = BCHandle },
+    State = #state{ index = Idx, backend = Backend },
     
+    %% Construct our vnode worker pool specification.
     Workers = application:get_env(pico_riak, vnode_workers, 1),
     FoldWorkerPool = {pool, pico_riak_vnode_worker, Workers, [Pos]},
 
@@ -57,20 +59,29 @@ init([Idx]) ->
 %% ===================================================================
 %% VNode Command Callbacks
 %% ===================================================================
-handle_command({get, Key}, _Sender, State) ->
-    R = do_get(Key, State),
-    reply(R, State).
+%% @doc Fetch a given key and bucket.
+handle_command({get, Bucket, Key}, _Sender, #state{ backend=BackendSt }=State) ->
+    {R, DVV, Backend} = pico_riak_bitcask_backend:get(Bucket, Key, BackendSt),
+    reply({R, DVV}, State#{ backend = Backend }).
 
-handle_command({}, _Sender, State) ->
-    .
+%% @doc Put a brand new object.
+handle_command({put, Bucket, Key, Obj}, _Sender, #state{ backend=BackendSt }=State) ->
 
--spec do_get(key(), #state{}) -> {ok, dvvset:clock()} | {error, term()}.
-do_get(Key, State) ->
-    case catch pico_riak_backend:get(State#state.bitcask_handle, Key) of
-        {ok, DVV}       -> {ok, DVV};
-        {error, Error}  -> {error, Error};
-        {'EXIT', Error} -> {error, Error}
-    end.
+    %% Create a new DVVSet with our object to store.
+    DVV = dvvset:new(Obj),
+
+    %% Set the current actor for use as the server id in the DVVSet.
+    DVV1 = dvvset:update(DVV, {State#state.index, node()})
+
+    case catch pico_riak_bitcask_backend:put(Bucket, Key, [], DVVObj, BackendSt) of
+        {ok, Backend} ->
+            reply(ok, State#{ backend = Backend });
+        {error, Error, Backend} ->
+            reply({error, Error}, State#{ backend = Backend });
+        {'EXIT', Error} ->
+            reply({error, Error}, State)
+
+    end;
 
 -spec reply(term(), #state{}) -> {reply, {vnode, integer(), atom(), term()}, #state{}}.
 reply(Reply, #state{index=Index}=State) ->
