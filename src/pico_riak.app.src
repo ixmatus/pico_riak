@@ -1,0 +1,13 @@
+{application, pico_riak,
+ [
+  {description, "A diminiutive K/V store built on Riak Core meant to be embedded in Erlang releases."},
+  {vsn, "0.0.1"},
+  {registered, []},
+  {applications,
+   [ kernel
+   , stdlib
+   , riak_core
+   ]},
+  {mod, { pico_riak_app, []}},
+  {env, []}
+ ]}.
